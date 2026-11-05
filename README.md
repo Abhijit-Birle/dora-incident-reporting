@@ -48,31 +48,31 @@ incident-svc (Java 21)         compliance-svc (Audit)     agent-svc (AI / HITL)
 
 ```mermaid
 flowchart TD
-    subgraph Intake ["Intake"]
+    subgraph Intake["Intake"]
         Alerts["Monitoring / SIEM Alerts"]
     end
 
-    subgraph Service1 ["1. incident-svc (In Progress)"]
-        RESTIntake["REST Ingestion API\n(HTTP Idempotency-Key)"]
-        RulesEngine["RTS 2024/1772 Rules Engine\n(Deterministic Evaluation)"]
-        FSM["Finite State Machine\n(@Version Optimistic Locking)"]
-        Deadlines["Dual-Clock Deadline Engine\n(4h / 24h Timers)"]
+    subgraph Service1["1. incident-svc (In Progress)"]
+        RESTIntake["REST Ingestion API<br/>(HTTP Idempotency-Key)"]
+        RulesEngine["RTS 2024/1772 Rules Engine<br/>(Deterministic Evaluation)"]
+        FSM["Finite State Machine<br/>(@Version Optimistic Locking)"]
+        Deadlines["Dual-Clock Deadline Engine<br/>(4h / 24h Timers)"]
     end
 
-    subgraph PlannedServices ["Planned Architecture"]
-        Compliance["compliance-svc\n(SHA-256 Hash Chain & Crypto-Shredder)"]
-        Agent["agent-svc\n(LangGraph AI Copilot & HITL Gate)"]
-        NCA["Supervisory Gateway\n(Mock BaFin / EBA)"]
+    subgraph PlannedServices["Planned Architecture"]
+        Compliance["compliance-svc<br/>(SHA-256 Hash Chain & Crypto-Shredder)"]
+        Agent["agent-svc<br/>(LangGraph AI Copilot & HITL Gate)"]
+        NCA["Supervisory Gateway<br/>(Mock BaFin / EBA)"]
     end
 
     Alerts --> RESTIntake
     RESTIntake --> FSM
     FSM --> RulesEngine
     FSM --> Deadlines
-    FSM -.->|Events (Kafka)| Compliance
-    FSM -.->|Draft Request| Agent
-    Agent -.->|Approved Draft| FSM
-    FSM -.->|Resilience4j| NCA
+    FSM -.->|"Events (Kafka)"| Compliance
+    FSM -.->|"Draft Request"| Agent
+    Agent -.->|"Approved Draft"| FSM
+    FSM -.->|"Resilience4j"| NCA
 ```
 
 Full architecture specifications, database schemas, and event contracts are documented in [design/ARCHITECTURE.md](design/ARCHITECTURE.md).

@@ -42,34 +42,34 @@ The platform consists of three decoupled microservices communicating asynchronou
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion ["Ingestion & External Gateways"]
-        AlertSources["Monitoring / SIEM Alerts\n(Datadog, Splunk, PagerDuty)"]
-        NCA["National Competent Authority\n(Mock BaFin / EBA Gateway)"]
+    subgraph Ingestion["Ingestion & External Gateways"]
+        AlertSources["Monitoring / SIEM Alerts<br/>(Datadog, Splunk, PagerDuty)"]
+        NCA["National Competent Authority<br/>(Mock BaFin / EBA Gateway)"]
     end
 
-    subgraph Service1 ["1. incident-svc (Java 21 / Spring Boot 3)"]
-        RESTIntake["REST Ingestion API\n(HTTP Idempotency-Key)"]
-        RulesEngine["RTS 2024/1772\nRules Engine"]
-        FSM["Finite State Machine\n(@Version Optimistic Concurrency)"]
-        DeadlineEngine["Dual-Clock Deadline Engine\n(4h / 24h Timers)"]
-        IncidentDB[("PostgreSQL\nSchema: incident")]
+    subgraph Service1["1. incident-svc (Java 21 / Spring Boot 3)"]
+        RESTIntake["REST Ingestion API<br/>(HTTP Idempotency-Key)"]
+        RulesEngine["RTS 2024/1772<br/>Rules Engine"]
+        FSM["Finite State Machine<br/>(@Version Optimistic Concurrency)"]
+        DeadlineEngine["Dual-Clock Deadline Engine<br/>(4h / 24h Timers)"]
+        IncidentDB[("PostgreSQL<br/>Schema: incident")]
     end
 
-    subgraph Service2 ["2. compliance-svc (Java 21 / Spring Boot 3)"]
-        AuditWriter["Single-Writer Ledger\n(SHA-256 Chained Hash)"]
-        Verifier["Periodic Audit Verifier\n(Tamper Detection)"]
-        KMSClient["Envelope Encryption\n& Crypto-Shredder"]
-        AuditDB[("PostgreSQL\nSchema: audit\n(REVOKE UPDATE/DELETE)")]
+    subgraph Service2["2. compliance-svc (Java 21 / Spring Boot 3)"]
+        AuditWriter["Single-Writer Ledger<br/>(SHA-256 Chained Hash)"]
+        Verifier["Periodic Audit Verifier<br/>(Tamper Detection)"]
+        KMSClient["Envelope Encryption<br/>& Crypto-Shredder"]
+        AuditDB[("PostgreSQL<br/>Schema: audit<br/>REVOKE UPDATE/DELETE")]
     end
 
-    subgraph Service3 ["3. agent-svc (Python 3.11 / LangGraph)"]
-        PIIScrubber["Presidio / Regex\nPII Sanitizer"]
-        LangGraph["LangGraph Workflow\n(Drafting & Completeness)"]
-        VectorDB[("ChromaDB Vector Store\n(DORA Legal Corpus)")]
-        HITLGate["Human-in-the-Loop\nInterrupt Gate"]
+    subgraph Service3["3. agent-svc (Python 3.11 / LangGraph)"]
+        PIIScrubber["Presidio / Regex<br/>PII Sanitizer"]
+        LangGraph["LangGraph Workflow<br/>(Drafting & Completeness)"]
+        VectorDB[("ChromaDB Vector Store<br/>(DORA Legal Corpus)")]
+        HITLGate["Human-in-the-Loop<br/>Interrupt Gate"]
     end
 
-    subgraph Messaging ["Message Bus (Apache Kafka)"]
+    subgraph Messaging["Message Bus (Apache Kafka)"]
         T_Ingested["incident.ingested.v1"]
         T_Classified["incident.classified.v1"]
         T_DraftReq["incident.drafting-requested.v1"]
@@ -79,35 +79,35 @@ flowchart TD
     end
 
     %% Ingestion Flow
-    AlertSources -->|POST /api/v1/incidents| RESTIntake
+    AlertSources -->|"POST /api/v1/incidents"| RESTIntake
     RESTIntake --> FSM
     FSM --> RulesEngine
     FSM --> DeadlineEngine
     FSM <--> IncidentDB
 
     %% Event Publishing
-    FSM -->|Emit| T_Ingested
-    FSM -->|Emit| T_Classified
-    T_Classified -->|Consume| T_DraftReq
+    FSM -->|"Emit"| T_Ingested
+    FSM -->|"Emit"| T_Classified
+    T_Classified -->|"Consume"| T_DraftReq
 
     %% Audit Flow
-    FSM -.->|Audit Events| T_Audit
-    T_Audit -->|Consume| AuditWriter
+    FSM -.->|"Audit Events"| T_Audit
+    T_Audit -->|"Consume"| AuditWriter
     AuditWriter <--> AuditDB
     AuditWriter <--> KMSClient
     Verifier --> AuditDB
 
     %% Agent Flow
-    T_DraftReq -->|Consume| PIIScrubber
+    T_DraftReq -->|"Consume"| PIIScrubber
     PIIScrubber --> LangGraph
     LangGraph <--> VectorDB
     LangGraph --> HITLGate
-    HITLGate -->|Analyst Approval| T_DraftReady
-    T_DraftReady -->|Consume| FSM
+    HITLGate -->|"Analyst Approval"| T_DraftReady
+    T_DraftReady -->|"Consume"| FSM
 
     %% Submission
-    FSM -->|Submit via Resilience4j| NCA
-    FSM -->|Emit| T_Submitted
+    FSM -->|"Submit via Resilience4j"| NCA
+    FSM -->|"Emit"| T_Submitted
 ```
 
 ---
@@ -170,24 +170,24 @@ The incident lifecycle follows an immutable forward-only state machine to preven
 
 ```mermaid
 stateDiagram-v2
-    [*] --> RECEIVED: POST /api/v1/incidents
-    RECEIVED --> CLASSIFIED: Evaluate RTS 2024/1772 Criteria
+    [*] --> RECEIVED: "POST /api/v1/incidents"
+    RECEIVED --> CLASSIFIED: "Evaluate RTS 2024/1772 Criteria"
     
     state CLASSIFIED {
-        [*] --> Major: Thresholds Met
-        [*] --> Minor: Thresholds Not Met
+        [*] --> Major: "Thresholds Met"
+        [*] --> Minor: "Thresholds Not Met"
     }
     
-    Major --> DRAFTING: Trigger AI Assistant
-    Minor --> CLOSED: Archive Non-Major Incident
+    Major --> DRAFTING: "Trigger AI Assistant"
+    Minor --> CLOSED: "Archive Non-Major Incident"
     
-    DRAFTING --> HITL_PENDING: LangGraph interrupt()
-    HITL_PENDING --> DRAFTING: Analyst Request Re-draft
-    HITL_PENDING --> APPROVED: Compliance Officer Approved (SoD Check)
+    DRAFTING --> HITL_PENDING: "LangGraph interrupt"
+    HITL_PENDING --> DRAFTING: "Analyst Request Re-draft"
+    HITL_PENDING --> APPROVED: "Compliance Officer Approved - SoD Check"
     
-    APPROVED --> SUBMITTED: Dispatch to NCA (Resilience4j)
-    SUBMITTED --> RESOLVED: Incident Mitigated
-    RESOLVED --> CLOSED: Final Report Delivered (1 Month)
+    APPROVED --> SUBMITTED: "Dispatch to NCA - Resilience4j"
+    SUBMITTED --> RESOLVED: "Incident Mitigated"
+    RESOLVED --> CLOSED: "Final Report Delivered - 1 Month"
     CLOSED --> [*]
 ```
 
