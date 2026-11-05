@@ -1,0 +1,15 @@
+# OS & Editor artifacts
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Build & Runtime
+target/
+**/target/
+*.log
+
+# Personal interview preparation notes (kept locally, excluded from public repository)
+skills.md
+*interview*

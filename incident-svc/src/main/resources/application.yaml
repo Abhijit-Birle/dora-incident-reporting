@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: incident-svc
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dora_db
+    username: dora_admin
+    password: dora_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate # IMPORTANT: We use Flyway, not Hibernate, to create tables
+    properties:
+      hibernate:
+        default_schema: incident
+  flyway:
+    enabled: true
+    schemas: incident # Flyway will manage the "incident" schema
