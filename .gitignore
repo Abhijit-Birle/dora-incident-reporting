@@ -10,6 +10,7 @@ target/
 **/target/
 *.log
 
-# Personal interview preparation notes (kept locally, excluded from public repository)
+# Personal interview preparation notes & local design specs (kept locally)
 skills.md
 *interview*
+design/
