@@ -7,7 +7,9 @@ import io.doraauditor.incident_svc.domain.Incident;
 import io.doraauditor.incident_svc.domain.IncidentStatus;
 import io.doraauditor.incident_svc.dto.IncidentRequest;
 import io.doraauditor.incident_svc.dto.IncidentResponse;
+import io.doraauditor.incident_svc.dto.TransitionStatusRequest;
 import io.doraauditor.incident_svc.exception.IdempotencyConflictException;
+import io.doraauditor.incident_svc.exception.IncidentNotFoundException;
 import io.doraauditor.incident_svc.repository.IdempotencyKeyRepository;
 import io.doraauditor.incident_svc.repository.IncidentRepository;
 import io.doraauditor.incident_svc.rules.ClassificationResult;
@@ -16,12 +18,16 @@ import io.doraauditor.incident_svc.service.IncidentService;
 import io.doraauditor.incident_svc.util.HashUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -156,6 +162,51 @@ public class IncidentServiceImpl implements IncidentService {
         return response;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public IncidentResponse getIncident(UUID incidentId) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        return buildResponseFromEntity(incident, "Incident status: " + incident.getStatus(), false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<IncidentResponse> listIncidents(IncidentStatus status, Boolean isMajor, Pageable pageable) {
+        Page<Incident> page = incidentRepository.findByFilters(status, isMajor, pageable);
+        return page.map(incident -> buildResponseFromEntity(incident, "Incident status: " + incident.getStatus(), false));
+    }
+
+    @Override
+    @Transactional
+    public IncidentResponse transitionStatus(UUID incidentId, TransitionStatusRequest request) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        // Optimistic locking check
+        if (!incident.getVersion().equals(request.version())) {
+            log.warn("Optimistic lock conflict on incident {}. Provided version: {}, current: {}",
+                    incidentId, request.version(), incident.getVersion());
+            throw new OptimisticLockingFailureException(
+                    "Incident version conflict. Provided version: " + request.version() + ", current version: " + incident.getVersion()
+            );
+        }
+
+        IncidentStatus previousStatus = incident.getStatus();
+        incident.transitionTo(request.targetStatus());
+        incident = incidentRepository.save(incident);
+
+        log.info("Incident {} transitioned successfully: {} -> {} by actor: '{}' (reason: '{}')",
+                incidentId, previousStatus, request.targetStatus(), request.actorId(), request.reason());
+
+        return buildResponseFromEntity(
+                incident,
+                String.format("Transitioned from %s to %s. Reason: %s", previousStatus, request.targetStatus(), request.reason()),
+                false
+        );
+    }
+
     private String computePayloadHash(IncidentRequest request) {
         try {
             return HashUtils.computeSha256(objectMapper.writeValueAsString(request));
@@ -226,7 +277,7 @@ public class IncidentServiceImpl implements IncidentService {
                 incident.getVersion(),
                 incident.getIsMajor(),
                 reason,
-                java.util.List.of(),
+                List.of(),
                 incident.getDetectedAt(),
                 incident.getAwarenessAt(),
                 incident.getClassifiedAt(),
