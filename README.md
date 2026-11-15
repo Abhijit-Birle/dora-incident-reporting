@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,20,24&height=190&section=header&text=DORA%20Auditor&fontSize=54&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Automated%20ICT%20incident%20classification%20%26%20regulatory%20reporting&descAlignY=58&descSize=18" alt="DORA Auditor" />
+<img src="docs/banner.svg" alt="DORA Auditor" width="100%" />
 
 <a href="https://github.com/Abhijit-Birle/dora-incident-reporting">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1200&color=2F6FED&center=true&vCenter=true&width=600&lines=Deterministic+rules+decide.;Advisory+AI+drafts.;Humans+approve.;The+cryptographic+audit+log+proves+it." alt="Typing animation" />
