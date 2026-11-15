@@ -31,6 +31,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Implementation of {@link IncidentService} coordinating idempotency verification, RTS criteria evaluation,
+ * statutory deadline computation, JPA persistence, and state machine transitions.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,6 +45,29 @@ public class IncidentServiceImpl implements IncidentService {
     private final RtsClassificationEngine classificationEngine;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Executes the end-to-end incident ingestion pipeline under transactional boundaries.
+     * <p>
+     * Steps:
+     * <ol>
+     *   <li>Computes SHA-256 hash of the incoming request JSON payload.</li>
+     *   <li>Verifies {@code idempotencyKey} against the database cache. If present with an identical hash,
+     *       returns the cached response marked with {@code idempotentReplay = true}. If the hash differs,
+     *       throws an {@link IdempotencyConflictException}.</li>
+     *   <li>Checks for duplicate source events using {@code (source, sourceEventId)} to guard against unkeyed retries.</li>
+     *   <li>Evaluates the incident against RTS (EU 2024/1772) specification criteria via {@link RtsClassificationEngine}.</li>
+     *   <li>If classified as MAJOR, computes the statutory dual-deadline:
+     *       {@code deadline = min(classifiedAt + 4 hours, awarenessAt + 24 hours)}.</li>
+     *   <li>Persists the new {@link Incident} entity in {@link IncidentStatus#CLASSIFIED} state with version 0.</li>
+     *   <li>Caches the response payload in the {@code incident.idempotency_key} table with a 24-hour expiration TTL.</li>
+     * </ol>
+     * </p>
+     *
+     * @param idempotencyKey unique client idempotency token or generated fallback
+     * @param request        incoming incident attributes and regulatory metrics
+     * @return {@link IncidentResponse} containing classification decision and deadline metrics
+     * @throws IdempotencyConflictException if the idempotency key was previously bound to a different request payload
+     */
     @Override
     @Transactional
     public IncidentResponse processIncident(String idempotencyKey, IncidentRequest request) {
@@ -162,6 +189,13 @@ public class IncidentServiceImpl implements IncidentService {
         return response;
     }
 
+    /**
+     * Retrieves an incident by its UUID in a read-only transaction, dynamically calculating the remaining countdown.
+     *
+     * @param incidentId the unique identifier of the incident to fetch
+     * @return {@link IncidentResponse} containing current state and updated deadline countdown minutes
+     * @throws IncidentNotFoundException if the specified incident ID does not exist in the database
+     */
     @Override
     @Transactional(readOnly = true)
     public IncidentResponse getIncident(UUID incidentId) {
@@ -171,13 +205,36 @@ public class IncidentServiceImpl implements IncidentService {
         return buildResponseFromEntity(incident, "Incident status: " + incident.getStatus(), false);
     }
 
+    /**
+     * Lists incidents with optional status and severity filtering, returning a paginated result set.
+     *
+     * @param status   optional {@link IncidentStatus} filter (null for all statuses)
+     * @param isMajor  optional major incident flag filter (null for all severities)
+     * @param pageable pagination parameters (page number, size, sort)
+     * @return a {@link Page} of mapped {@link IncidentResponse} objects
+     */
     @Override
     @Transactional(readOnly = true)
     public Page<IncidentResponse> listIncidents(IncidentStatus status, Boolean isMajor, Pageable pageable) {
         Page<Incident> page = incidentRepository.findByFilters(status, isMajor, pageable);
-        return page.map(incident -> buildResponseFromEntity(incident, "Incident status: " + incident.getStatus(), false));
+        return page.map(incident -> buildResponseFromEntity(incident, "Incident status: "
+                + incident.getStatus(), false));
     }
 
+    /**
+     * Transitions an incident to a new lifecycle state enforcing optimistic locking and FSM rules.
+     * <p>
+     * Throws an {@link OptimisticLockingFailureException} if the client's provided version does not match
+     * the database version, protecting against concurrent supervisor approvals or stale state overrides.
+     * </p>
+     *
+     * @param incidentId the unique identifier of the incident to advance
+     * @param request    transition details including target status, version token, actor, and rationale
+     * @return {@link IncidentResponse} reflecting the newly persisted state and incremented version
+     * @throws IncidentNotFoundException           if the incident does not exist
+     * @throws OptimisticLockingFailureException   if the version token does not match the stored version
+     * @throws IllegalStateException               if the state transition violates {@link IncidentStatus#canTransitionTo}
+     */
     @Override
     @Transactional
     public IncidentResponse transitionStatus(UUID incidentId, TransitionStatusRequest request) {
@@ -207,6 +264,13 @@ public class IncidentServiceImpl implements IncidentService {
         );
     }
 
+    /**
+     * Computes the SHA-256 fingerprint of the serialized {@link IncidentRequest} JSON string.
+     *
+     * @param request the incoming incident intake request
+     * @return 64-character lowercase hex-encoded SHA-256 hash string
+     * @throws RuntimeException if JSON serialization fails
+     */
     private String computePayloadHash(IncidentRequest request) {
         try {
             return HashUtils.computeSha256(objectMapper.writeValueAsString(request));
@@ -215,6 +279,14 @@ public class IncidentServiceImpl implements IncidentService {
         }
     }
 
+    /**
+     * Persists an idempotency record caching the response body with a 24-hour expiration window.
+     *
+     * @param key      the idempotency key
+     * @param hash     the SHA-256 fingerprint of the request payload
+     * @param response the generated incident response to cache
+     * @param now      the current instant marking record creation
+     */
     private void saveIdempotencyRecord(String key, String hash, IncidentResponse response, Instant now) {
         try {
             String json = objectMapper.writeValueAsString(response);
@@ -233,6 +305,13 @@ public class IncidentServiceImpl implements IncidentService {
         }
     }
 
+    /**
+     * Deserializes a cached JSON response body from the idempotency table, setting {@code idempotentReplay = true}.
+     *
+     * @param responseBodyJson serialized JSON string from {@link IdempotencyKeyRecord#getResponseBody()}
+     * @return reconstructed {@link IncidentResponse} marked as an idempotent replay
+     * @throws RuntimeException if deserialization fails
+     */
     private IncidentResponse deserializeCachedResponse(String responseBodyJson) {
         try {
             IncidentResponse cached = objectMapper.readValue(responseBodyJson, IncidentResponse.class);
@@ -261,6 +340,14 @@ public class IncidentServiceImpl implements IncidentService {
         }
     }
 
+    /**
+     * Reconstructs an {@link IncidentResponse} DTO from an {@link Incident} entity, recalculating the live countdown.
+     *
+     * @param incident the source incident entity
+     * @param reason   classification rationale or status change description
+     * @param isReplay flag indicating whether this is an idempotent replay response
+     * @return complete {@link IncidentResponse} DTO with active statutory countdown
+     */
     private IncidentResponse buildResponseFromEntity(Incident incident, String reason, boolean isReplay) {
         Long countdown = null;
         if (incident.getClassificationDeadline() != null) {

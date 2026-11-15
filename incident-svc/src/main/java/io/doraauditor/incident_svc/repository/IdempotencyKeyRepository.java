@@ -6,6 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/**
+ * Spring Data JPA repository for {@link IdempotencyKeyRecord} caching and replay lookup.
+ */
 @Repository
 public interface IdempotencyKeyRepository extends JpaRepository<IdempotencyKeyRecord, String> {
 }

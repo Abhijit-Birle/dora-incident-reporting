@@ -8,6 +8,28 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Incoming incident alert intake payload containing monitoring telemetry, operational scope,
+ * and RTS (EU 2024/1772) quantitative and qualitative regulatory metrics.
+ *
+ * @param source                   originating monitoring system (e.g. "DATADOG", "PAGERDUTY", "PROMETHEUS")
+ * @param sourceEventId            external unique event ID in the originating platform
+ * @param detectedAt               timestamp when the technical failure first manifested
+ * @param awarenessAt              timestamp when the financial entity became aware (starts DORA Art. 19 24h clock)
+ * @param title                    short summary of the incident
+ * @param description              detailed operational breakdown or incident log excerpt
+ * @param serviceId                impacted service or infrastructure component identifier
+ * @param severityHint             originating severity rating (e.g. "P1", "CRITICAL")
+ * @param rawLogsRef               pointer to raw diagnostic logs (e.g. S3 URI or APM trace link)
+ * @param isCriticalService        RTS Art. 1: whether the affected component supports a Critical or Important Function (CIF)
+ * @param affectedClientsCount     RTS Art. 2: absolute count of impacted clients (threshold &gt; 100,000)
+ * @param affectedClientsPercentage RTS Art. 2: percentage of active client base impacted (threshold &gt; 10%)
+ * @param durationMinutes          RTS Art. 4: cumulative downtime or service degradation in minutes (threshold &gt; 120m)
+ * @param economicImpactAmount     RTS Art. 3: direct financial loss or impacted transaction volume in EUR (threshold &gt; &euro;100k)
+ * @param dataIntegrityImpacted    RTS Art. 5: whether data confidentiality, integrity, or authenticity was compromised
+ * @param reputationalImpact       RTS Art. 6: whether the event caused public media exposure or supervisory complaints
+ * @param geographicSpreadCount    RTS Art. 7: count of impacted EU Member States (threshold &ge; 2)
+ */
 public record IncidentRequest(
         // -------------------------------------------------------------
         // 1. Source System & Tracking Metadata
@@ -68,7 +90,14 @@ public record IncidentRequest(
         @PositiveOrZero(message = "Geographic spread cannot be negative")
         Integer geographicSpreadCount // RTS threshold: >= 2 EU Member States
 ) {
-    // Compact constructor to set sensible defaults
+    /**
+     * Compact constructor enforcing regulatory defaults and defensive field sanitization.
+     * <p>
+     * Defaults {@code awarenessAt} to {@code detectedAt} if omitted, defaults boolean metrics
+     * ({@code dataIntegrityImpacted}, {@code reputationalImpact}) to {@code false}, and sets
+     * minimum geographic spread to 1 Member State.
+     * </p>
+     */
     public IncidentRequest {
         if (awarenessAt == null && detectedAt != null) {
             awarenessAt = detectedAt;

@@ -22,10 +22,33 @@ public class RtsClassificationEngine {
 
     private final List<RegulatoryCriterion> criteria;
 
+    /**
+     * Constructs an {@code RtsClassificationEngine} with the ordered list of regulatory criteria beans.
+     *
+     * @param criteria list of Spring-managed {@link RegulatoryCriterion} component implementations
+     */
     public RtsClassificationEngine(List<RegulatoryCriterion> criteria) {
         this.criteria = criteria;
     }
 
+    /**
+     * Evaluates an incoming incident request against all registered RTS criteria using the Article 9 composite logic.
+     * <p>
+     * An incident is classified as MAJOR if and only if:
+     * <ol>
+     *   <li>A critical or important function is affected (Article 1 gatekeeper), AND</li>
+     *   <li>Either:
+     *     <ul>
+     *       <li>Data integrity, confidentiality, or authenticity is compromised (Article 5), OR</li>
+     *       <li>At least 2 secondary materiality thresholds are met (Articles 2, 3, 4, 6, 7).</li>
+     *     </ul>
+     *   </li>
+     * </ol>
+     * </p>
+     *
+     * @param request the incident intake request containing telemetry, impact figures, and criticality flags
+     * @return {@link ClassificationResult} detailing whether the incident is major, the rationale, and criteria met
+     */
     public ClassificationResult evaluate(IncidentRequest request) {
         List<String> criteriaMet = new ArrayList<>();
         int materialityCount = 0;

@@ -5,8 +5,15 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * Request payload for transitioning an incident through its regulatory lifecycle.
- * Enforces JPA optimistic concurrency control via the version field.
+ * Request payload for transitioning an incident through its regulatory lifecycle state machine.
+ * <p>
+ * Enforces JPA optimistic concurrency control via the {@code version} field to avoid lost updates.
+ * </p>
+ *
+ * @param targetStatus proposed target {@link IncidentStatus} to advance to
+ * @param version      optimistic concurrency token representing the expected current version of the incident
+ * @param reason       audit rationale explaining the reason for this state transition (e.g. "HITL sign-off by compliance officer")
+ * @param actorId      user or automated system identifier performing the transition
  */
 public record TransitionStatusRequest(
         @NotNull(message = "Target status is required")
