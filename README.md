@@ -54,11 +54,10 @@ dora-auditor/
   - `incident.incident` with statutory deadline tracking (`awareness_at`, `classified_at`, `classification_deadline`) and `@Version` concurrency support.
   - `incident.idempotency_key` for deterministic request deduplication.
 - [x] **Local Infrastructure**: Docker Compose container configuration for PostgreSQL 16.
-- [ ] **In Active Development**:
-  - RTS (EU 2024/1772) rules engine implementation
-  - Finite State Machine entity transitions and validation
-  - Dual-clock countdown calculation
-  - Idempotent REST API intake (`POST /api/v1/incidents`)
+- [x] **RTS (EU 2024/1772) Rules Engine**: Specification pattern evaluating all 7 criteria and Art. 9 major incident formula with JUnit 5 boundary tests.
+- [x] **Finite State Machine & Concurrency**: JPA `@Version` optimistic locking and transition matrix (`IncidentStatus`).
+- [x] **Statutory Dual-Clock Deadlines**: Simultaneous tracking of 4h classification timer and 24h awareness window (`min(clock1, clock2)`).
+- [x] **Idempotent Ingestion**: HTTP `Idempotency-Key` validation with SHA-256 payload hashing, conflict detection (HTTP 422), and cached response replay.
 
 ---
 
