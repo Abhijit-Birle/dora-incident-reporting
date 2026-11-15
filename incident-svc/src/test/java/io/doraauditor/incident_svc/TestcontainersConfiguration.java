@@ -1,4 +1,4 @@
-package io.github.abhijitbirle.doraauditor.incident_svc;
+package io.doraauditor.incident_svc;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
