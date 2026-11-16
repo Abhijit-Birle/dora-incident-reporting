@@ -10,6 +10,14 @@ target/
 **/target/
 *.log
 
+# Python & Environment
+.env
+*.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # Personal interview preparation notes & local design specs (kept locally)
 skills.md
 *interview*

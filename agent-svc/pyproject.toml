@@ -1,0 +1,15 @@
+[project]
+name = "agent-svc"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.163.1",
+    "google-genai>=3.3.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.3",
+    "pytest>=9.2.0",
+    "uvicorn>=0.54.0",
+]
